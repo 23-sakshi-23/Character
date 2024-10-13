@@ -1,0 +1,149 @@
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
+// Initialize the LCD
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+// Pin connected to the buttons
+const int dotButtonPin = 7;  // Dot input button
+const int dashButtonPin = 6;  // Dash input button
+
+// Pin connected to the single LED
+const int inputLEDPin = 9;  // LED for both dot and dash input
+
+// Morse code timing constants
+const unsigned long letterPauseTime = 1500; // Time for pause between letters
+const unsigned long wordPauseTime = 3000; // Time for pause between words
+const unsigned long debounceDelay = 200; // Debounce delay in milliseconds
+const unsigned long ledDotDuration = 200; // Duration for LED on for dot
+const unsigned long ledDashDuration = 400; // Duration for LED on for dash
+
+String morseInput = "";
+String decodedMessage = "";
+
+// Morse code dictionary
+char morseCodes[][6] = { 
+    ".-", "-...", "-.-.", "-..", ".", "..-.", "--.", "....", "..", ".---", 
+    "-.-", ".-..", "--", "-.", "---", ".--.", "--.-", ".-.", "...", "-", 
+    "..-", "...-", ".--", "-..-", "-.--", "--..", 
+    "-----", ".----", "..---", "...--", "....-", ".....", "-....", "--...", "---..", "----." 
+};
+
+char letters[] = {
+    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 
+    'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 
+    'U', 'V', 'W', 'X', 'Y', 'Z', 
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' 
+};
+
+// Setup function
+void setup() {
+    pinMode(dotButtonPin, INPUT_PULLUP); // Dot button as input with internal pull-up resistor
+    pinMode(dashButtonPin, INPUT_PULLUP); // Dash button as input with internal pull-up resistor
+    pinMode(inputLEDPin, OUTPUT); // Set the LED pin as output
+
+    lcd.begin();  // Initialize the LCD
+    lcd.backlight();  // Turn on the backlight
+    Serial.begin(9600);  // Initialize serial communication for debugging
+}
+
+// Function to decode Morse input
+char decodeMorse(String morse) {
+    for (int i = 0; i < 36; i++) {
+        if (morse.equals(morseCodes[i])) {
+            return letters[i];
+        }
+    }
+    Serial.print("Unrecognized Morse: ");
+    Serial.println(morse);
+    return '?'; // Return '?' if not found
+}
+
+void loop() {
+    static unsigned long lastInputTime = 0; // Last time input was received
+    static bool dotPressed = false; // Track if dot button is pressed
+    static bool dashPressed = false; // Track if dash button is pressed
+
+    int dotButtonState = digitalRead(dotButtonPin);
+    int dashButtonState = digitalRead(dashButtonPin);
+
+    // Check if the dot button is pressed
+    if (dotButtonState == LOW && !dotPressed) {
+        morseInput += "."; // Dot input
+        Serial.print("."); // Output dot to Serial Monitor
+        dotPressed = true; // Set dot button pressed flag
+        lastInputTime = millis(); // Update the last input time
+        delay(debounceDelay); // Debounce delay
+
+        // Blink LED for dot input
+        digitalWrite(inputLEDPin, HIGH); // Turn on the LED
+        delay(ledDotDuration);            // LED on duration
+        digitalWrite(inputLEDPin, LOW);   // Turn off the LED
+    } else if (dotButtonState == HIGH) {
+        dotPressed = false; // Reset dot button pressed flag
+    }
+
+    // Check if the dash button is pressed
+    if (dashButtonState == LOW && !dashPressed) {
+        morseInput += "-"; // Dash input
+        Serial.print("-"); // Output dash to Serial Monitor
+        dashPressed = true; // Set dash button pressed flag
+        lastInputTime = millis(); // Update the last input time
+        delay(debounceDelay); // Debounce delay
+
+        // Blink LED for dash input
+        digitalWrite(inputLEDPin, HIGH); // Turn on the LED
+        delay(ledDashDuration);            // LED on duration
+        digitalWrite(inputLEDPin, LOW);   // Turn off the LED
+    } else if (dashButtonState == HIGH) {
+        dashPressed = false; // Reset dash button pressed flag
+    }
+
+    // Check for pauses between letters and words
+    if (millis() - lastInputTime > letterPauseTime) {
+        if (morseInput.length() > 0) {
+            Serial.print("Morse Input Received: ");
+            Serial.println(morseInput);
+            
+            char decodedChar = decodeMorse(morseInput); // Decode the Morse code
+            if (decodedChar == '?') {
+                if (morseInput.length() > 0) {
+                    decodedMessage += " "; // Add a space for a word
+                }
+            } else {
+                decodedMessage += decodedChar; // Add to the final message
+            }
+            
+            // Display the current Morse code input
+            lcd.clear();
+            lcd.setCursor(0, 0);
+            lcd.print("Morse Code: ");
+            lcd.setCursor(0, 1);
+            lcd.print(morseInput); // Display Morse input on LCD
+            
+            Serial.print("Decoded Character: ");
+            Serial.println(decodedChar);
+
+            delay(1000); // Delay to show Morse input before clearing it
+
+            morseInput = ""; // Clear the current Morse input for the next character
+            lastInputTime = millis(); // Update the last input time again
+        }
+    }
+
+    // Handle word pause
+    if (millis() - lastInputTime > wordPauseTime && decodedMessage.length() > 0) {
+        // Display the decoded message
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print("Decoded Msg: ");
+        lcd.setCursor(0, 1);
+        lcd.print(decodedMessage); // Display decoded message on LCD
+        
+        Serial.print("Decoded Message: ");
+        Serial.println(decodedMessage);
+
+        decodedMessage = ""; // Clear the decoded message for the next input
+        delay(2000); // Delay to show the decoded message
+    }
+}
