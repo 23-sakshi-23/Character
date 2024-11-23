@@ -104,7 +104,7 @@ void setup() {
     pinMode(dashButtonPin, INPUT_PULLUP); // Dash button as input with internal pull-up resistor
     pinMode(inputLEDPin, OUTPUT); // Set the LED pin as output
 
-    lcd.begin();  // Initialize the LCD
+    lcd.begin(16,2);  // Initialize the LCD
     lcd.backlight();  // Turn on the backlight
     Serial.begin(9600);  // Initialize serial communication for debugging
 }
